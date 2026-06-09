@@ -1,0 +1,311 @@
+package codigo;
+import java_cup.runtime.Symbol;
+
+parser code
+{:
+    public static TablaSimbolos tabla = new TablaSimbolos();
+    public static GestorTripletas gestor = new GestorTripletas();
+    private Symbol s;
+    public void syntax_error(Symbol s){ this.s = s; }
+    public Symbol getS(){ return this.s; }
+:};
+
+action code {:
+    private String obtenerTipo(Object o){
+        if (o instanceof Integer) return "int";
+        if (o instanceof Double)  return "double";
+        if (o instanceof String)  return "string";
+        if (o instanceof Boolean) return "boolean";
+        return "null";
+    }
+:}
+
+/* TERMINALES */
+terminal Int, Double, Cadena, Boolean, If, Else, While, For, Main, Return;
+terminal P_coma, Igual, ERROR, Coma;
+terminal ParParentesis_a, ParParentesis_c, Llave_a, Llave_c;
+terminal Identificador, Numero, NumeroDecimal, CadenaLiteral, True, False;
+terminal Suma, Resta, Multiplicacion, Division, Potencia;
+terminal Incremento, Decremento, IgualIgual, Diferente;
+terminal Menor, Mayor, MenorIgual, MayorIgual;
+terminal Sqrt, Sin, Cos, Tan, Factorial, Fibonacci, FormulaGeneral;
+
+/* NO TERMINALES */
+non terminal INICIO;
+non terminal Object SENTENCIA, DECLARACION, EXPRESION, CONDICION;
+non terminal String TIPO_DATO;
+
+/* PRECEDENCIA */
+precedence left IgualIgual, Diferente, Menor, Mayor, MenorIgual, MayorIgual;
+precedence left Suma, Resta;
+precedence left Multiplicacion, Division;
+precedence right Potencia;
+
+start with INICIO;
+
+/* --- GRAMÁTICA --- */
+
+INICIO ::= Int Main ParParentesis_a ParParentesis_c Llave_a SENTENCIA Llave_c
+           {: :}
+           ;
+
+SENTENCIA ::= SENTENCIA DECLARACION
+              {: :}
+            | DECLARACION
+              {: :}
+            ;
+
+TIPO_DATO ::= Int:t {: RESULT = "int"; :}
+            | Double:t {: RESULT = "double"; :}
+            | Cadena:t {: RESULT = "string"; :}
+            | Boolean:t {: RESULT = "boolean"; :}
+            ;
+
+DECLARACION ::= 
+    TIPO_DATO:t Identificador:id P_coma 
+    {:
+        if(tabla.buscar((String)id) == null) {
+            tabla.insertar((String)id, (String)t);
+            gestor.agregarDeclaracion((String)t, (String)id);
+            System.out.println("Variable " + id + " declarada como " + t);
+        } else {
+            System.err.println("Error: Variable " + id + " ya existe.");
+        }
+    :}
+    |
+    TIPO_DATO:t Identificador:id Igual EXPRESION:e P_coma 
+    {:
+        if(tabla.buscar((String)id) == null) {
+            String tipoVal = obtenerTipo(e);
+            if (t.equals(tipoVal) || (t.equals("double") && tipoVal.equals("int"))) {
+                Simbolo s = tabla.insertar((String)id, (String)t);
+                if (t.equals("double") && tipoVal.equals("int")) 
+                    s.valor = Double.valueOf(e.toString());
+                else 
+                    s.valor = e;
+
+                gestor.agregarDeclaracion((String)t, (String)id);
+                gestor.agregarAsignacion((String)id, e.toString());
+
+                System.out.println(t + " " + id + " = " + s.valor);
+            } else {
+                System.err.println("Error: No puedes asignar " + tipoVal + " a " + t);
+            }
+        } else {
+            System.err.println("Error: Variable " + id + " ya existe.");
+        }
+    :}
+    |
+    Identificador:id Igual EXPRESION:e P_coma
+    {:
+        Simbolo s = tabla.buscar((String)id);
+        if (s != null) {
+            String tipoVal = obtenerTipo(e);
+            if (s.tipo.equals(tipoVal) || (s.tipo.equals("double") && tipoVal.equals("int"))) {
+                if (s.tipo.equals("double") && tipoVal.equals("int")) 
+                    s.valor = Double.valueOf(e.toString());
+                else 
+                    s.valor = e;
+
+                gestor.agregarAsignacion((String)id, e.toString());
+                System.out.println("Asignación: " + id + " = " + s.valor);
+            } else {
+                System.err.println("Error: Tipo incorrecto para " + id);
+            }
+        } else {
+            System.err.println("Error: Variable " + id + " no existe.");
+        }
+    :}
+    |
+    Identificador:id Incremento P_coma {:
+        Simbolo s = tabla.buscar((String)id);
+        if (s != null && (s.tipo.equals("int") || s.tipo.equals("double"))) {
+            if(s.tipo.equals("int")) s.valor = (Integer)s.valor + 1;
+            else s.valor = (Double)s.valor + 1.0;
+            gestor.agregarUnaria("++", (String)id, (String)id);
+            System.out.println(id + " incrementado a " + s.valor);
+        } else System.err.println("Error: No se puede incrementar " + id);
+    :}
+    |
+    Identificador:id Decremento P_coma {:
+        Simbolo s = tabla.buscar((String)id);
+        if (s != null && (s.tipo.equals("int") || s.tipo.equals("double"))) {
+            if(s.tipo.equals("int")) s.valor = (Integer)s.valor - 1;
+            else s.valor = (Double)s.valor - 1.0;
+            gestor.agregarUnaria("--", (String)id, (String)id);
+            System.out.println(id + " decrementado a " + s.valor);
+        } else System.err.println("Error: No se puede decrementar " + id);
+    :}
+    |
+    If ParParentesis_a CONDICION:cond ParParentesis_c Llave_a SENTENCIA Llave_c
+    {:
+        System.out.println("If ejecutado con condición: " + cond);
+    :}
+    |
+    While ParParentesis_a CONDICION:cond ParParentesis_c Llave_a SENTENCIA Llave_c
+    {:
+        System.out.println("While definido con condición: " + cond);
+    :}
+;
+
+CONDICION ::= EXPRESION:e1 IgualIgual EXPRESION:e2 
+              {: RESULT = e1.equals(e2); :}
+            | EXPRESION:e1 Diferente EXPRESION:e2 
+              {: RESULT = !e1.equals(e2); :}
+            | EXPRESION:e1 Menor EXPRESION:e2 
+              {: 
+                  double v1 = Double.parseDouble(e1.toString());
+                  double v2 = Double.parseDouble(e2.toString());
+                  RESULT = v1 < v2; 
+              :}
+            | EXPRESION:e1 Mayor EXPRESION:e2 
+              {: 
+                  double v1 = Double.parseDouble(e1.toString());
+                  double v2 = Double.parseDouble(e2.toString());
+                  RESULT = v1 > v2; 
+              :}
+            | True {: RESULT = true; :}
+            | False {: RESULT = false; :}
+            | Identificador:id 
+              {: 
+                  Simbolo s = tabla.buscar((String)id);
+                  RESULT = (s != null && s.tipo.equals("boolean")) ? s.valor : false;
+              :}
+;
+
+EXPRESION ::= 
+    EXPRESION:e1 Suma EXPRESION:e2 {:
+        String t1 = obtenerTipo(e1), t2 = obtenerTipo(e2);
+        if (t1.equals("string") || t2.equals("string")) {
+            RESULT = e1.toString() + e2.toString();
+        } else if (t1.equals("double") || t2.equals("double")) {
+            RESULT = Double.parseDouble(e1.toString()) + Double.parseDouble(e2.toString());
+        } else if (t1.equals("int") && t2.equals("int")) {
+            RESULT = (int)e1 + (int)e2;
+        } else RESULT = null;
+        gestor.agregarTripleta("+", e1.toString(), e2.toString());
+    :}
+    |
+    EXPRESION:e1 Resta EXPRESION:e2 {:
+        String t1 = obtenerTipo(e1), t2 = obtenerTipo(e2);
+        if (t1.equals("double") || t2.equals("double")) {
+            RESULT = Double.parseDouble(e1.toString()) - Double.parseDouble(e2.toString());
+        } else if (t1.equals("int") && t2.equals("int")) {
+            RESULT = (int)e1 - (int)e2;
+        } else RESULT = null;
+        gestor.agregarTripleta("-", e1.toString(), e2.toString());
+    :}
+    |
+    EXPRESION:e1 Multiplicacion EXPRESION:e2 {:
+        String t1 = obtenerTipo(e1), t2 = obtenerTipo(e2);
+        if (t1.equals("double") || t2.equals("double")) {
+            RESULT = Double.parseDouble(e1.toString()) * Double.parseDouble(e2.toString());
+        } else if (t1.equals("int") && t2.equals("int")) {
+            RESULT = (int)e1 * (int)e2;
+        } else RESULT = null;
+        gestor.agregarTripleta("*", e1.toString(), e2.toString());
+    :}
+    |
+    EXPRESION:e1 Division EXPRESION:e2 {:
+        String t1 = obtenerTipo(e1), t2 = obtenerTipo(e2);
+        double divisor = Double.parseDouble(e2.toString());
+        if (divisor == 0) {
+            System.err.println("Error: División por cero");
+            RESULT = null;
+        } else if (t1.equals("double") || t2.equals("double")) {
+            RESULT = Double.parseDouble(e1.toString()) / divisor;
+        } else if (t1.equals("int") && t2.equals("int")) {
+            RESULT = (int)e1 / (int)e2;
+        } else RESULT = null;
+        gestor.agregarTripleta("/", e1.toString(), e2.toString());
+    :}
+    |
+    EXPRESION:e1 Potencia EXPRESION:e2 {:
+        double base = Double.parseDouble(e1.toString());
+        double exp = Double.parseDouble(e2.toString());
+        double res = Math.pow(base, exp);
+        if (res % 1 == 0) RESULT = (int)res;
+        else RESULT = res;
+        gestor.agregarTripleta("^", e1.toString(), e2.toString());
+    :}
+    |
+    Sqrt ParParentesis_a EXPRESION:e ParParentesis_c {:
+        double val = Double.parseDouble(e.toString());
+        if (val < 0) {
+            System.err.println("Error: sqrt de número negativo");
+            RESULT = null;
+        } else {
+            RESULT = Math.sqrt(val);
+            gestor.agregarTripleta("sqrt", e.toString(), "-");
+        }
+    :}
+    |
+    Sin ParParentesis_a EXPRESION:e ParParentesis_c {:
+        double x = Double.parseDouble(e.toString());
+        String temp = gestor.agregarSinTaylor(x, 10);
+        RESULT = FuncionesMatematicas.sinTaylor(x, 10);
+        System.out.println("sin(" + x + ") ≈ " + RESULT + " [" + temp + "]");
+    :}
+    |
+    Cos ParParentesis_a EXPRESION:e ParParentesis_c {:
+        double x = Double.parseDouble(e.toString());
+        String temp = gestor.agregarCosTaylor(x, 10);
+        RESULT = FuncionesMatematicas.cosTaylor(x, 10);
+        System.out.println("cos(" + x + ") ≈ " + RESULT + " [" + temp + "]");
+    :}
+    |
+    Factorial ParParentesis_a EXPRESION:e ParParentesis_c {:
+        int n = Integer.parseInt(e.toString());
+        if (n < 0) {
+            System.err.println("Error: factorial de número negativo");
+            RESULT = null;
+        } else {
+            String temp = gestor.agregarFactorial(n);
+            RESULT = FuncionesMatematicas.factorial(n);
+            System.out.println(n + "! = " + RESULT + " [" + temp + "]");
+        }
+    :}
+    |
+    Fibonacci ParParentesis_a EXPRESION:e ParParentesis_c {:
+        int n = Integer.parseInt(e.toString());
+        if (n < 0) {
+            System.err.println("Error: fibonacci de número negativo");
+            RESULT = null;
+        } else {
+            String temp = gestor.agregarFibonacci(n);
+            RESULT = FuncionesMatematicas.fibonacci(n);
+            System.out.println("fib(" + n + ") = " + RESULT + " [" + temp + "]");
+        }
+    :}
+    |
+    FormulaGeneral ParParentesis_a EXPRESION:a Coma EXPRESION:b Coma EXPRESION:c ParParentesis_c {:
+        double aVal = Double.parseDouble(a.toString());
+        double bVal = Double.parseDouble(b.toString());
+        double cVal = Double.parseDouble(c.toString());
+        
+        String temp = gestor.agregarFormulaGeneral(aVal, bVal, cVal);
+        double[] raices = FuncionesMatematicas.formulaGeneral(aVal, bVal, cVal);
+        
+        if (raices == null) {
+            System.out.println("No hay raíces reales");
+            RESULT = "Sin raíces reales";
+        } else if (raices.length == 1) {
+            System.out.println("Raíz única: x = " + raices[0] + " [" + temp + "]");
+            RESULT = raices[0];
+        } else {
+            System.out.println("x1 = " + raices[0] + ", x2 = " + raices[1] + " [tripletas generadas]");
+            RESULT = "x1=" + raices[0] + ", x2=" + raices[1];
+        }
+    :}
+    |
+    Numero:n {: RESULT = Integer.parseInt((String)n); :}
+    | NumeroDecimal:n {: RESULT = Double.parseDouble((String)n); :}
+    | CadenaLiteral:s {: RESULT = (String)s; :}
+    | True {: RESULT = true; :}
+    | False {: RESULT = false; :}
+    | Identificador:id {: 
+        Simbolo s = tabla.buscar((String)id); 
+        RESULT = (s != null) ? s.valor : null; 
+    :}
+    | ParParentesis_a EXPRESION:e ParParentesis_c {: RESULT = e; :}
+;

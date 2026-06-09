@@ -1,0 +1,8 @@
+int main() {
+    // Taylor: x - x^3/3! + x^5/5! ...
+    int x = 3;
+    int term1 = x;
+    int term2 = (x**3) / 6;
+    int term3 = (x**5) / 120;
+    int senX = term1 - term2 + term3;
+}
